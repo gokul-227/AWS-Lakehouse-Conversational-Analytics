@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    container_name: lakechat-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    env_file:
+      - .env.example
+    environment:
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=http://localhost:5173
+    networks:
+      - lakechat
+
+  frontend:
+    build: ./frontend
+    container_name: lakechat-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+    networks:
+      - lakechat
+
+networks:
+  lakechat:
+    driver: bridge

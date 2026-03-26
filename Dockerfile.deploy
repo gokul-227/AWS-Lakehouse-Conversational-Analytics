@@ -1,0 +1,34 @@
+# Multi-stage build for Lambda packaging and frontend build
+FROM python:3.11-slim AS backend-builder
+
+WORKDIR /build
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt --target ./package
+COPY backend/ ./src/
+
+RUN mkdir -p /lambda_package && \
+    cp -r package/* /lambda_package/ 2>/dev/null || true && \
+    cp -r src/api src/services src/ai src/utils src/main.py /lambda_package/
+
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /build
+COPY frontend/package.json .
+RUN npm install
+COPY frontend/ .
+RUN npm run build
+
+FROM amazon/aws-cli:latest AS deployer
+
+RUN yum install -y zip terraform unzip && \
+    yum clean all
+
+WORKDIR /deploy
+
+COPY --from=backend-builder /lambda_package ./lambda_package
+COPY --from=frontend-builder /build/dist ./frontend_dist
+COPY infra/ ./infra/
+COPY scripts/ ./scripts/
+COPY data/ ./data/
+
+RUN cd lambda_package && zip -r ../lambda_package.zip . -q
